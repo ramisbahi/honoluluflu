@@ -1,0 +1,10 @@
+[theme]
+primaryColor = "#0076B6"          # Honolulu blue
+backgroundColor = "#0A0F14"       # Deep navy
+secondaryBackgroundColor = "#101820" # Dark slate
+textColor = "#F0F3F5"
+font = "sans serif"
+
+[client]
+toolbarMode = "minimal"
+
