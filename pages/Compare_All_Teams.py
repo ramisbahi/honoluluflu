@@ -109,7 +109,9 @@ if _should_refresh(st.session_state.get("last_fetched_all")):
 with st.spinner("Computing Honolulu Flu across all teams..."):
     rows_df = _compute_all_rows(tuple(seasons), play, compare) if seasons else pd.DataFrame(columns=["Team", "Flu %", "Total"])
 
-res = rows_df.sort_values(["Flu %"], ascending=[False])
+res = rows_df.round({"Flu %": 1}).sort_values(["Flu %"], ascending=[False])
+# Slightly larger font for the table
+st.markdown("<style>div[data-testid='stDataFrame'] * {font-size: 1.05rem;}</style>", unsafe_allow_html=True)
 st.dataframe(res, use_container_width=True, hide_index=True)
 
 color_map = {t["displayName"]: (f"#{t['color']}" if t.get("color") else "#0076B6") for t in teams}
@@ -118,9 +120,11 @@ fig = px.bar(res, x="Team", y="Flu %", color="Team", color_discrete_map=color_ma
 title_play = "All games" if play == "play" else "Wins Only"
 title_follow = "Following Week" if compare == "week" else "Following Game"
 title_text = f"Honolulu Flu % by Team, {start}–{end} • {title_play} • {title_follow}"
-# Compute y-axis padding so logos aren't clipped
+fig.update_traces(text=res["Flu %"], texttemplate="%{text:.1f}", textposition="outside")
+
+# Compute y-axis padding so logos and text aren't clipped
 y_max = float(res["Flu %"].max() or 0.0)
-pad = max(5.0, y_max * 0.15)
+pad = max(6.0, y_max * 0.22)
 
 # Attempt to annotate bars with logos using layout images
 for i, row in res.iterrows():
@@ -146,7 +150,8 @@ fig.update_layout(
     margin=dict(l=0, r=0, t=40, b=20),
     showlegend=False,
     yaxis=dict(range=[0, y_max + pad]),
-    title=dict(text=title_text, x=0.5, xanchor='center')
+    title=dict(text=title_text, x=0.5, xanchor='center'),
+    font=dict(size=14)
 )
 if HAS_EVENTS:
     # plotly_events renders the chart and returns click events

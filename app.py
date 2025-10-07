@@ -18,6 +18,25 @@ st.set_page_config(
 
 st.markdown(kpi_style(), unsafe_allow_html=True)
 
+# Larger typography for main page metrics and tables
+st.markdown(
+    """
+    <style>
+    div[data-testid="stMetricValue"] { font-size: 2.2rem; }
+    div[data-testid="stMetricLabel"] { font-size: 1.05rem; }
+    /* Make dataframe text larger */
+    div[data-testid='stDataFrame'] * { font-size: 1.45rem; }
+    /* Ensure AG Grid cells/headers scale up */
+    div[data-testid='stDataFrame'] .ag-cell,
+    div[data-testid='stDataFrame'] .ag-header-cell,
+    div[data-testid='stDataFrame'] .ag-header-group-cell { font-size: 1.45rem; }
+    /* Reduce extra cell padding for tighter fit */
+    div[data-testid='stDataFrame'] .st-ag-theme * { line-height: 1.3; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # Smart caching: Eastern time and refresh policy
 EASTERN = dateutil_tz.gettz("US/Eastern")
 
@@ -339,8 +358,9 @@ if not df.empty:
         barmode="group",
         category_orders={"Season": sorted(plot_df["Season"].unique().tolist())},
         color_discrete_map={True: accent, False: LIONS_COLORS["silver"]},
+        text_auto=True,
     )
-    fig.update_layout(height=320, showlegend=False, margin=dict(l=0, r=0, t=10, b=0), xaxis_tickformat="d")
+    fig.update_layout(height=360, showlegend=False, margin=dict(l=0, r=0, t=10, b=0), xaxis_tickformat="d", font=dict(size=14))
     st.plotly_chart(fig, use_container_width=True)
 
     # Pie chart summary
@@ -352,7 +372,8 @@ if not df.empty:
         color="Honolulu Flu",
         color_discrete_map={"Yes": accent, "No": LIONS_COLORS["silver"]},
     )
-    pie_fig.update_layout(height=320, margin=dict(l=0, r=0, t=10, b=0))
+    pie_fig.update_traces(textinfo='percent+label')
+    pie_fig.update_layout(height=360, margin=dict(l=0, r=0, t=10, b=0), font=dict(size=14))
     st.plotly_chart(pie_fig, use_container_width=True)
 
 st.caption("Source: ESPN public APIs. This tool is unofficial and for fun.")
