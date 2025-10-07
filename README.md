@@ -1,5 +1,7 @@
 # Honolulu Flu Tracker
 
+honoluluflu.com
+
 Track how NFL teams perform the week/game after facing a selected team — the tongue‑in‑cheek “Honolulu Flu.” Default focuses on the Detroit Lions, but you can analyze any team, compare across all teams, and share filterable views via URL parameters.
 
 ## What is the “Honolulu Flu”?
