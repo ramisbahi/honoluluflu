@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from typing import Optional
+from datetime import datetime, timedelta
+from dateutil import tz as dateutil_tz
 
 from hf.espn import LIONS_TEAM_ID, get_teams
 from hf.flu import compute_honolulu_flu, summarize_percentage
@@ -9,12 +11,35 @@ from hf.theme import kpi_style, LIONS_COLORS
 
 
 st.set_page_config(
-    page_title="Honolulu Flu — Detroit Lions",
+    page_title="Honolulu Flu — Single Team",
     page_icon="🦁",
     layout="wide",
 )
 
 st.markdown(kpi_style(), unsafe_allow_html=True)
+
+# Smart caching: Eastern time and refresh policy
+EASTERN = dateutil_tz.gettz("US/Eastern")
+
+def should_refresh(last_fetched: Optional[datetime]) -> bool:
+    now = datetime.now(EASTERN)
+    if not last_fetched:
+        return True
+    if now - last_fetched > timedelta(hours=6):
+        return True
+    # Mon/Thu/Sat/Sun late-night post-game windows
+    if now.weekday() in [0, 3, 5, 6] and now.hour >= 23:
+        return True
+    # Sunday smart windows: late afternoon games end ~4:30-5 ET
+    if now.weekday() == 6 and ((now.hour == 16 and now.minute >= 35) or (now.hour == 17 and now.minute <= 15)):
+        return True
+    # Sunday primetime window around 8-9pm ET
+    if now.weekday() == 6 and (now.hour in [20, 21]):
+        return True
+    # Sunday post-SNF wrap after 11:30pm ET
+    if now.weekday() == 6 and (now.hour > 23 or (now.hour == 23 and now.minute >= 30)):
+        return True
+    return False
 
 teams = get_teams()
 id_to_name = {t["id"]: t["displayName"] for t in teams}
@@ -50,8 +75,9 @@ with st.sidebar:
     subject_team_id = name_to_id.get(subject_team_name, LIONS_TEAM_ID)
 
 title_icon = "🦁" if subject_team_id == LIONS_TEAM_ID else "🏈"
+accent = next((f"#{t['color']}" for t in teams if t["id"] == subject_team_id and t.get("color")), "#0076B6")
 st.title(f"{title_icon} Honolulu Flu Tracker: Do You Believe?")
-st.caption(f"How NFL teams fare the week/game after facing the {subject_team_name}.")
+st.markdown(f"How NFL teams fare the week/game after facing the <b><span style='color:{accent}'>{subject_team_name}</span></b>.", unsafe_allow_html=True)
 st.caption("Designed by Rami Sbahi. @RamiSbahi on X")
 
 with st.sidebar:
@@ -93,28 +119,24 @@ with st.sidebar:
         "end": end_season,
     })
 
-_USE_CACHE = False  # set True if you want cache; keeping false to ensure live recompute
-if _USE_CACHE:
-    CACHE_VERSION = "5"
-    @st.cache_data(show_spinner=False, ttl=60 * 60 * 6)
-    def _cached_flu(_seasons, _play_mode, _follow_mode, _version):
-        return compute_honolulu_flu(seasons=_seasons, play_mode=_play_mode, follow_mode=_follow_mode)
-    try:
-        _ = _cached_flu(tuple([2024, 2025]), "beat", "week", CACHE_VERSION)
-    except Exception:
-        pass
+@st.cache_data(ttl=0, show_spinner=False)
+def _cached_flu(_seasons, _play_mode, _follow_mode, _team_id):
+    return compute_honolulu_flu(seasons=_seasons, play_mode=_play_mode, follow_mode=_follow_mode, subject_team_id=_team_id)
+
+@st.cache_data
+def _get_last_fetch_time():
+    return datetime.now(EASTERN)
 
 error_message = None
 if seasons:
     try:
+        # Smart refresh: clear cache after game windows / 6h
+        last_fetched = st.session_state.get("last_fetched")
+        if should_refresh(last_fetched):
+            st.cache_data.clear()
+            st.session_state["last_fetched"] = datetime.now(EASTERN)
         with st.spinner("Loading games..."):
-            # Always compute live for accurate cross-season/bye logic
-            rows = compute_honolulu_flu(
-                seasons=tuple(seasons),
-                play_mode=play_mode,
-                follow_mode=follow_mode,
-                subject_team_id=subject_team_id,
-            )
+            rows = _cached_flu(tuple(seasons), play_mode, follow_mode, subject_team_id)
     except Exception as e:
         rows = []
         error_message = str(e)
@@ -135,6 +157,28 @@ def _format_week_label(week_text: Optional[str], week_num: Optional[int]) -> str
         return "SB"
     return str(week_num) if week_num is not None else "—"
 
+# Human-friendly week text for display (regular week or playoff round)
+def _human_week_text(label: Optional[object]) -> str:
+    if label is None or (isinstance(label, str) and label.strip() == ""):
+        return ""
+    mapping = {"WC": "Wildcard", "D": "Divisional", "C": "Conference", "SB": "Super Bowl"}
+    if isinstance(label, str):
+        up = label.upper()
+        if up in mapping:
+            return mapping[up]
+        if label.isdigit():
+            try:
+                return f"Week {int(label)}"
+            except Exception:
+                return ""
+        return ""
+    if isinstance(label, (int, float)) and pd.notna(label):
+        try:
+            return f"Week {int(label)}"
+        except Exception:
+            return ""
+    return ""
+
 df = pd.DataFrame([
     {
         "Season": r.season,
@@ -148,6 +192,7 @@ df = pd.DataFrame([
         "Opp Next Date": r.opp_next_date,
         "Opp Next Result": getattr(r, "opp_next_result", None),
         "Opp Next Opponent": getattr(r, "opp_next_opp_name", None),
+        "Opp Next Is Home": getattr(r, "opp_next_is_home", None),
         "Opp Next Score": getattr(r, "opp_next_team_score", None),
         "Opp Next Opp Score": getattr(r, "opp_next_opp_score", None),
         "Opp Next After Bye": getattr(r, "opp_next_after_bye", False),
@@ -206,30 +251,17 @@ if not df.empty:
         cross = row.get("Opp Next Cross Season", False)
         wk_label = row.get("Opp Next Week")
         if pd.isna(res) or res is None or a is None or b is None or pd.isna(a) or pd.isna(b):
+            # Pending future game: show opponent and home/away
+            if isinstance(opp, str) and opp:
+                ha = " vs " if bool(row.get("Opp Next Is Home")) else " @ "
+                wk_text = _human_week_text(wk_label)
+                wk_suffix = f" ({wk_text})" if wk_text else ""
+                return f"TBD{ha}{opp}{wk_suffix}"
             return "—"
-        opp_s = f" vs {opp}" if isinstance(opp, str) and opp else ""
+        ha_played = " vs " if bool(row.get("Opp Next Is Home")) else " @ "
+        opp_s = f"{ha_played}{opp}" if isinstance(opp, str) and opp else ""
         year_suffix = f" ({int(min(seasons) + 1)})" if cross and seasons else ""
-        def _human_week(label):
-            if label is None or (isinstance(label, str) and label.strip() == ""):
-                return ""
-            mapping = {"WC": "Wildcard", "D": "Divisional", "C": "Conference", "SB": "Super Bowl"}
-            if isinstance(label, str):
-                up = label.upper()
-                if up in mapping:
-                    return mapping[up]
-                if label.isdigit():
-                    try:
-                        return f"Week {int(label)}"
-                    except Exception:
-                        return ""
-                return ""
-            if isinstance(label, (int, float)) and pd.notna(label):
-                try:
-                    return f"Week {int(label)}"
-                except Exception:
-                    return ""
-            return ""
-        wk_text = _human_week(wk_label)
+        wk_text = _human_week_text(wk_label)
         wk_suffix = f" ({wk_text})" if wk_text else ""
         return f"{res} {int(a)}–{int(b)}{opp_s}{wk_suffix}{year_suffix}"
 
@@ -269,8 +301,8 @@ st.divider()
 
 st.subheader("Games")
 st.caption(
-    f"Showing {len(df)} Lions games • Include: "
-    f"{'Lions beat' if play_mode == 'beat' else 'All vs Lions'}"
+    f"Showing {len(df)} {subject_team_name} games • Include: "
+    f"{subject_team_name + ' beat' if play_mode == 'beat' else 'All games'}"
     f" • Following: {'Next week' if follow_mode == 'week' else 'Next played game'}"
     f" • Seasons: {min(seasons) if seasons else ''}–{max(seasons) if seasons else ''}"
 )
@@ -306,7 +338,7 @@ if not df.empty:
         color="is_flu",
         barmode="group",
         category_orders={"Season": sorted(plot_df["Season"].unique().tolist())},
-        color_discrete_map={True: LIONS_COLORS["honolulu_blue"], False: LIONS_COLORS["silver"]},
+        color_discrete_map={True: accent, False: LIONS_COLORS["silver"]},
     )
     fig.update_layout(height=320, showlegend=False, margin=dict(l=0, r=0, t=10, b=0), xaxis_tickformat="d")
     st.plotly_chart(fig, use_container_width=True)
@@ -318,7 +350,7 @@ if not df.empty:
         names="Honolulu Flu",
         values="count",
         color="Honolulu Flu",
-        color_discrete_map={"Yes": LIONS_COLORS["honolulu_blue"], "No": LIONS_COLORS["silver"]},
+        color_discrete_map={"Yes": accent, "No": LIONS_COLORS["silver"]},
     )
     pie_fig.update_layout(height=320, margin=dict(l=0, r=0, t=10, b=0))
     st.plotly_chart(pie_fig, use_container_width=True)

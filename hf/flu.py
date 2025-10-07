@@ -33,6 +33,7 @@ class GameRow:
     opp_next_opp_score: Optional[int]
     opp_next_after_bye: bool = False
     opp_next_cross_season: bool = False
+    opp_next_is_home: Optional[bool] = None
 
     @property
     def lions_vs_label(self) -> str:
@@ -186,6 +187,7 @@ def compute_honolulu_flu(seasons: Iterable[int], play_mode: PlayMode, follow_mod
                     opp_next_opp_score=(next_row or {}).get("opp_score"),
                     opp_next_after_bye=after_bye,
                     opp_next_cross_season=cross_season,
+                    opp_next_is_home=((next_row or {}).get("is_home") if next_row else None),
                 )
             )
 

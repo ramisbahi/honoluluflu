@@ -146,11 +146,17 @@ def get_teams() -> List[Dict[str, Any]]:
     teams: List[Dict[str, Any]] = []
     for g in (data.get("sports") or [{}])[0].get("leagues", [{}])[0].get("teams", []) or []:
         t = g.get("team") or {}
+        logos = (t.get("logos") or [])
+        logo_href = None
+        if logos:
+            logo_href = logos[0].get("href")
         teams.append({
             "id": t.get("id"),
             "displayName": t.get("displayName"),
             "abbreviation": t.get("abbreviation"),
             "nickname": t.get("nickname"),
+            "color": t.get("color"),
+            "logo": logo_href,
         })
     return teams
 
