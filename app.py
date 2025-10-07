@@ -327,3 +327,15 @@ st.caption("Source: ESPN public APIs. This tool is unofficial and for fun.")
 
 
 
+
+st.markdown(
+    """
+    <hr style="margin-top:2em; margin-bottom:1em;">
+    <div style="text-align:center; font-size:0.9em;">
+      <a href="https://github.com/ramisbahi/honoluluflu" target="_blank" style="color:white; text-decoration:none;">
+        ⭐ View source on GitHub
+      </a>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
