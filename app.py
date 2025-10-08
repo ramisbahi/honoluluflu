@@ -32,6 +32,16 @@ st.markdown(
     div[data-testid='stDataFrame'] .ag-header-group-cell { font-size: 1.45rem; }
     /* Reduce extra cell padding for tighter fit */
     div[data-testid='stDataFrame'] .st-ag-theme * { line-height: 1.3; }
+    /* Mobile responsiveness */
+    @media (max-width: 768px) {
+      /* Stack columns full-width on mobile */
+      div[data-testid="column"] { width: 100% !important; flex: 1 1 100% !important; }
+      /* Slightly smaller metrics for mobile */
+      div[data-testid="stMetricValue"] { font-size: 1.6rem; }
+      div[data-testid="stMetricLabel"] { font-size: 0.95rem; }
+      /* Dataframe font a bit smaller to fit */
+      div[data-testid='stDataFrame'] * { font-size: 1.15rem; }
+    }
     </style>
     """,
     unsafe_allow_html=True,

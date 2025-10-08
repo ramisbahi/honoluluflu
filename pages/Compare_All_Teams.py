@@ -63,6 +63,26 @@ _set_qps({"play": play, "compare": compare, "start": start, "end": end})
 st.title("📊 Honolulu Flu — All Teams")
 st.caption("Comparison of Honolulu Flu % across teams (same filters as main page).")
 
+# Larger typography + mobile responsiveness for this page
+st.markdown(
+    """
+    <style>
+    /* Bigger table text */
+    div[data-testid='stDataFrame'] * { font-size: 1.35rem; }
+    div[data-testid='stDataFrame'] .ag-cell,
+    div[data-testid='stDataFrame'] .ag-header-cell,
+    div[data-testid='stDataFrame'] .ag-header-group-cell { font-size: 1.35rem; }
+    div[data-testid='stDataFrame'] .st-ag-theme * { line-height: 1.3; }
+    /* Mobile adjustments */
+    @media (max-width: 768px) {
+      div[data-testid='stDataFrame'] * { font-size: 1.1rem; }
+      .main-svg { height: 260px !important; }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 EASTERN = dateutil_tz.gettz("US/Eastern")
 
 def _should_refresh(last_fetched: datetime | None) -> bool:
